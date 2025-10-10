@@ -1,0 +1,43 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+build/
+dist/
+*.egg-info/
+
+# Environment variables
+.env
+.env.local
+
+# Database
+*.db
+*.sqlite3
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# MacOS
+.DS_Store
+
+# Model files (too large for GitHub)
+*.bin
+*.pth
+*.h5
+*.onnx
+pytorch_model.bin
+
+# Logs
+*.log
+
+# Secrets
+config.ini
+secrets.json
