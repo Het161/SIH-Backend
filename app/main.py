@@ -18,24 +18,28 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+# Get environment from OS env vars with fallback
+ENVIRONMENT = os.getenv("ENVIRONMENT", "production")
+
 # Lifespan manager for startup/shutdown
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    logger.info(f"🚀 Starting {settings.APP_NAME} v{settings.VERSION}")
-    logger.info(f"📦 Environment: {settings.ENVIRONMENT}")
+    app_name = getattr(settings, 'APP_NAME', 'SmartWork 360')
+    version = getattr(settings, 'VERSION', '1.0.0')
+    
+    logger.info(f"🚀 Starting {app_name} v{version}")
+    logger.info(f"📦 Environment: {ENVIRONMENT}")
     logger.info(f"🗄️  Database: {settings.DATABASE_URL[:40]}...")
     
     try:
-        from app.models import User, Task  # Import models
+        from app.models import User, Task
         
-        # Create tables only if they don't exist
-        if settings.ENVIRONMENT != "production":
+        if ENVIRONMENT != "production":
             Base.metadata.create_all(bind=engine)
             logger.info("✅ Database tables created/verified")
         else:
             logger.info("✅ Database tables skipped (use Alembic in production)")
         
-        # Test database connection
         from sqlalchemy import text
         with engine.connect() as conn:
             conn.execute(text("SELECT 1"))
@@ -51,45 +55,32 @@ async def lifespan(app: FastAPI):
     logger.info("👋 Application shutdown complete")
 
 app = FastAPI(
-    title=settings.APP_NAME,
+    title=getattr(settings, 'APP_NAME', 'SmartWork 360'),
     description="SmartWork 360 - Government Productivity Management System",
-    version=settings.VERSION,
+    version=getattr(settings, 'VERSION', '1.0.0'),
     docs_url="/docs",
     redoc_url="/redoc",
     openapi_url="/openapi.json",
     lifespan=lifespan,
 )
 
-# CORS configuration - FIXED VERSION
+# CORS configuration
 def get_cors_origins():
-    """Get CORS origins with safe attribute checking"""
     origins = [
         "http://localhost:3000",
         "http://localhost:3001",
         "http://127.0.0.1:3000",
     ]
     
-    # Safely get FRONTEND_URL from environment or settings
     frontend_url = os.getenv("FRONTEND_URL")
-    if not frontend_url and hasattr(settings, 'FRONTEND_URL'):
-        frontend_url = settings.FRONTEND_URL
     if frontend_url:
         origins.append(frontend_url)
     
-    # Safely get ALLOWED_ORIGINS from environment or settings
     allowed_origins = os.getenv("ALLOWED_ORIGINS")
-    if not allowed_origins and hasattr(settings, 'ALLOWED_ORIGINS'):
-        allowed_origins = settings.ALLOWED_ORIGINS
-    
     if allowed_origins:
-        if isinstance(allowed_origins, list):
-            origins.extend(allowed_origins)
-        elif isinstance(allowed_origins, str):
-            # Split by comma if multiple origins
-            origins.extend([origin.strip() for origin in allowed_origins.split(",")])
+        origins.extend([origin.strip() for origin in allowed_origins.split(",")])
     
-    # Allow all in development
-    if settings.ENVIRONMENT == "development":
+    if ENVIRONMENT == "development":
         logger.warning("⚠️  CORS: Allow all origins (development mode)")
         return ["*"]
     
@@ -157,7 +148,7 @@ async def general_exception_handler(request: Request, exc: Exception):
         f"Unhandled Exception: {type(exc).__name__} | Path: {request.url.path} | Error: {str(exc)}",
         exc_info=True
     )
-    error_detail = str(exc) if settings.ENVIRONMENT == "development" else "Internal server error"
+    error_detail = str(exc) if ENVIRONMENT == "development" else "Internal server error"
     return JSONResponse(
         status_code=500,
         content={
@@ -170,7 +161,6 @@ async def general_exception_handler(request: Request, exc: Exception):
         },
     )
 
-# Request logging middleware
 @app.middleware("http")
 async def log_requests(request: Request, call_next):
     logger.info(f"📨 {request.method} {request.url.path}")
@@ -182,18 +172,17 @@ async def log_requests(request: Request, call_next):
         logger.error(f"❌ {request.method} {request.url.path} | Error: {str(e)}", exc_info=True)
         raise
 
-# Root endpoints
 @app.get("/", tags=["Root"])
 async def root():
     return {
         "success": True,
         "message": "Welcome to SmartWork 360 API",
         "data": {
-            "app_name": settings.APP_NAME,
+            "app_name": getattr(settings, 'APP_NAME', 'SmartWork 360'),
             "description": "Government Productivity Management System",
-            "version": settings.VERSION,
+            "version": getattr(settings, 'VERSION', '1.0.0'),
             "status": "running",
-            "environment": settings.ENVIRONMENT,
+            "environment": ENVIRONMENT,
             "endpoints": {
                 "docs": "/docs",
                 "health": "/health",
@@ -226,9 +215,9 @@ async def health_check():
             "success": is_healthy,
             "status": "healthy" if is_healthy else "unhealthy",
             "data": {
-                "app_name": settings.APP_NAME,
-                "version": settings.VERSION,
-                "environment": settings.ENVIRONMENT,
+                "app_name": getattr(settings, 'APP_NAME', 'SmartWork 360'),
+                "version": getattr(settings, 'VERSION', '1.0.0'),
+                "environment": ENVIRONMENT,
                 "database": {
                     "status": db_status,
                     "error": db_error if not is_healthy else None
@@ -257,7 +246,7 @@ async def readiness_check():
                 "success": False,
                 "status": "not_ready",
                 "message": "Application is not ready",
-                "error": str(e) if settings.ENVIRONMENT == "development" else None,
+                "error": str(e) if ENVIRONMENT == "development" else None,
             },
         )
 
@@ -287,8 +276,8 @@ async def api_info():
     return {
         "success": True,
         "data": {
-            "app_name": settings.APP_NAME,
-            "version": settings.VERSION,
+            "app_name": getattr(settings, 'APP_NAME', 'SmartWork 360'),
+            "version": getattr(settings, 'VERSION', '1.0.0'),
             "total_routes": len(routes),
             "routes_by_tag": routes_by_tag
         }
@@ -299,7 +288,6 @@ from app.api.v1.endpoints import auth
 app.include_router(auth.router, prefix="/api/v1", tags=["Authentication"])
 logger.info("✅ Authentication routes loaded")
 
-# Load additional v1 routes
 try:
     from app.api.v1.endpoints import tasks, analytics, audit, reports, dashboard
     app.include_router(tasks.router, prefix="/api/v1", tags=["Tasks"])
@@ -311,10 +299,8 @@ try:
 except ImportError as e:
     logger.warning(f"⚠️  Some v1 routes not available: {e}")
 
-# Load additional API routes (skip ML-dependent ones in production)
 try:
-    # Skip ML/AI routes in production to save memory
-    if settings.ENVIRONMENT == "development":
+    if ENVIRONMENT == "development":
         try:
             from app.api import predictions, sentiment, assistant
             app.include_router(predictions.router)
@@ -324,7 +310,6 @@ try:
         except ImportError as ml_error:
             logger.warning(f"⚠️  ML/AI routes not available: {ml_error}")
     
-    # Load non-ML routes
     from app.api import blockchain, notifications
     from app.api import analytics_fraud, access_analytics, automation
     from app.api import data_transfer, dashboard_charts
@@ -341,12 +326,11 @@ try:
 except ImportError as e:
     logger.warning(f"⚠️  Some API routes not available: {e}")
 
-# Run server (for local development)
 if __name__ == "__main__":
     import uvicorn
     port = int(os.getenv("PORT", 8000))
     host = os.getenv("HOST", "0.0.0.0")
-    reload = settings.ENVIRONMENT == "development"
+    reload = ENVIRONMENT == "development"
     
     logger.info(f"🚀 Starting server on {host}:{port}")
     logger.info(f"🔄 Auto-reload: {reload}")
@@ -359,6 +343,9 @@ if __name__ == "__main__":
         log_level="info",
         access_log=True
     )
+
+
+
 
 
 
