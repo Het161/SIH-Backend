@@ -54,27 +54,39 @@ app = FastAPI(
     title=settings.APP_NAME,
     description="SmartWork 360 - Government Productivity Management System",
     version=settings.VERSION,
-    docs_url="/docs",  # Always enable docs (can disable in production if needed)
+    docs_url="/docs",
     redoc_url="/redoc",
     openapi_url="/openapi.json",
     lifespan=lifespan,
 )
 
-# CORS configuration
+# CORS configuration - FIXED VERSION
 def get_cors_origins():
+    """Get CORS origins with safe attribute checking"""
     origins = [
         "http://localhost:3000",
         "http://localhost:3001",
         "http://127.0.0.1:3000",
     ]
     
-    # Add production frontend URL if exists
-    if settings.FRONTEND_URL:
-        origins.append(settings.FRONTEND_URL)
+    # Safely get FRONTEND_URL from environment or settings
+    frontend_url = os.getenv("FRONTEND_URL")
+    if not frontend_url and hasattr(settings, 'FRONTEND_URL'):
+        frontend_url = settings.FRONTEND_URL
+    if frontend_url:
+        origins.append(frontend_url)
     
-    # Add any additional allowed origins
-    if hasattr(settings, 'ALLOWED_ORIGINS') and settings.ALLOWED_ORIGINS:
-        origins.extend(settings.ALLOWED_ORIGINS)
+    # Safely get ALLOWED_ORIGINS from environment or settings
+    allowed_origins = os.getenv("ALLOWED_ORIGINS")
+    if not allowed_origins and hasattr(settings, 'ALLOWED_ORIGINS'):
+        allowed_origins = settings.ALLOWED_ORIGINS
+    
+    if allowed_origins:
+        if isinstance(allowed_origins, list):
+            origins.extend(allowed_origins)
+        elif isinstance(allowed_origins, str):
+            # Split by comma if multiple origins
+            origins.extend([origin.strip() for origin in allowed_origins.split(",")])
     
     # Allow all in development
     if settings.ENVIRONMENT == "development":
@@ -303,11 +315,14 @@ except ImportError as e:
 try:
     # Skip ML/AI routes in production to save memory
     if settings.ENVIRONMENT == "development":
-        from app.api import predictions, sentiment, assistant
-        app.include_router(predictions.router)
-        app.include_router(sentiment.router)
-        app.include_router(assistant.router)
-        logger.info("✅ ML/AI routes loaded (development only)")
+        try:
+            from app.api import predictions, sentiment, assistant
+            app.include_router(predictions.router)
+            app.include_router(sentiment.router)
+            app.include_router(assistant.router)
+            logger.info("✅ ML/AI routes loaded (development only)")
+        except ImportError as ml_error:
+            logger.warning(f"⚠️  ML/AI routes not available: {ml_error}")
     
     # Load non-ML routes
     from app.api import blockchain, notifications
@@ -344,6 +359,7 @@ if __name__ == "__main__":
         log_level="info",
         access_log=True
     )
+
 
 
 
