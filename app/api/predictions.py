@@ -7,7 +7,7 @@ from uuid import UUID
 
 from app.db.session import get_db
 from app.db.models.task import Task
-from app.db.models.user import User
+from app.models.user import User
 from app.ml.performance_predictor import PerformancePredictor
 
 router = APIRouter(prefix="/api/predictions", tags=["ML Predictions"])

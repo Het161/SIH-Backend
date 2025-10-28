@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func, and_
 from app.db.session import get_db
 from app.db.models.task import Task, TaskStatus, Review
-from app.db.models.user import User
+from app.models.user import User
 from app.schemas.analytics import UserProductivity, TeamProductivity, OrganizationMetrics, SLABreach
 import datetime
 

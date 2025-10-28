@@ -4,6 +4,7 @@ from app.db.session import Base
 
 class AutomationRule(Base):
     __tablename__ = "automation_rules"
+    __table_args__ = {'extend_existing': True} 
     
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String, unique=True, nullable=False)

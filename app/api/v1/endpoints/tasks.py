@@ -10,7 +10,9 @@ from app.db.session import get_db
 from app.db.models.task import Task, TaskStatus, GPSLog, Evidence, Review
 from app.utils.audit import log_action
 
+
 router = APIRouter()
+
 
 # Pydantic model for bulk task creation
 class BulkTaskCreate(BaseModel):
@@ -19,6 +21,42 @@ class BulkTaskCreate(BaseModel):
     assigned_to_list: List[str]
     assigned_by: str
     due_date: datetime.datetime
+
+
+# ===== NEW GET ENDPOINT =====
+@router.get("/tasks")
+def get_all_tasks(
+    skip: int = 0,
+    limit: int = 100,
+    db: Session = Depends(get_db)
+):
+    """
+    Get all tasks with pagination
+    """
+    tasks = db.query(Task).offset(skip).limit(limit).all()
+    
+    return {
+        "success": True,
+        "data": [
+            {
+                "id": str(task.id),
+                "title": task.title,
+                "description": task.description,
+                "status": task.status,
+                "priority": task.priority,
+                "assigned_to": str(task.assigned_to) if task.assigned_to else None,
+                "assigned_by": str(task.assigned_by) if task.assigned_by else None,
+                "created_by": str(task.created_by) if hasattr(task, 'created_by') and task.created_by else None,
+                "due_date": str(task.due_date) if task.due_date else None,
+                "created_at": str(task.created_at) if task.created_at else None,
+                "updated_at": str(task.updated_at) if task.updated_at else None
+            }
+            for task in tasks
+        ],
+        "total": len(tasks),
+        "skip": skip,
+        "limit": limit
+    }
 
 
 @router.post("/tasks")
@@ -236,3 +274,4 @@ def search_tasks(
         }
         for task in tasks
     ]
+

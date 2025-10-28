@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import desc
 from app.db.session import get_db
 from app.db.models.audit_log import AuditLog
-from app.db.models.user import User
+from app.models.user import User
 from app.schemas.audit import AuditLogResponse
 from typing import List, Optional
 import datetime

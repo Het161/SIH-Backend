@@ -89,12 +89,14 @@ def get_cors_origins():
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=get_cors_origins(),
+    allow_origins=[
+        "https://smartwork-frontend-1g4psweny-het-patels-projects-7277c57e.vercel.app",
+        "http://localhost:3000",
+        "*"  # Temporary: Allow all origins for testing
+    ],
     allow_credentials=True,
-    allow_methods=["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
+    allow_methods=["*"],
     allow_headers=["*"],
-    expose_headers=["*"],
-    max_age=3600,
 )
 
 # Exception handlers

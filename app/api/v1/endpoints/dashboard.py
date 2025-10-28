@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func
 from app.db.session import get_db
 from app.db.models.task import Task, TaskStatus, Review
-from app.db.models.user import User
+from app.models.user import User
 from pydantic import BaseModel
 from typing import List
 import datetime

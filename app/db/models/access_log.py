@@ -5,6 +5,7 @@ from app.db.session import Base
 
 class APIAccessLog(Base):
     __tablename__ = "api_access_logs"
+    __table_args__ = {'extend_existing': True} 
     
     id = Column(Integer, primary_key=True, index=True)
     user_role = Column(String, index=True)

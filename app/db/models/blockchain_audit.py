@@ -5,6 +5,7 @@ from app.db.session import Base
 
 class BlockchainAudit(Base):
     __tablename__ = "blockchain_audit"
+    __table_args__ = {'extend_existing': True} 
     
     id = Column(Integer, primary_key=True, index=True)
     block_hash = Column(String(64), unique=True, nullable=False, index=True)

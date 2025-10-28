@@ -3,7 +3,7 @@ from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 from app.db.session import get_db
 from app.api.v1.endpoints.analytics import get_user_productivity, get_team_productivity
-from app.db.models.user import User
+from app.models.user import User
 from app.utils.reports import (
     generate_user_productivity_pdf,
     generate_user_productivity_excel,
