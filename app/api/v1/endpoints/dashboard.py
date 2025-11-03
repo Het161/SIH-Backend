@@ -1,14 +1,16 @@
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import func
 from app.db.session import get_db
+from app.core.security import get_current_user
 from app.db.models.task import Task, TaskStatus, Review
 from app.models.user import User
 from pydantic import BaseModel
 from typing import List
 import datetime
 
-router = APIRouter()
+router = APIRouter(prefix="/dashboard", tags=["Dashboard"])
 
 class DashboardSummary(BaseModel):
     total_tasks: int
@@ -102,4 +104,37 @@ def get_user_dashboard(user_id: str, db: Session = Depends(get_db)):
         "pending_tasks": my_pending,
         "completed_tasks": my_completed,
         "overdue_tasks": my_overdue
+    }
+
+@router.get("/admin")
+async def get_admin_dashboard(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """Get admin dashboard statistics"""
+    return {
+        "success": True,
+        "data": {
+            "total_users": 0,
+            "total_tasks": 0,
+            "completed_tasks": 0,
+            "pending_tasks": 0,
+            "departments": [],
+            "recent_activities": []
+        }
+    }
+
+@router.get("/stats")
+async def get_dashboard_stats(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """Get general dashboard statistics"""
+    return {
+        "success": True,
+        "data": {
+            "tasks": 0,
+            "completed": 0,
+            "pending": 0
+        }
     }

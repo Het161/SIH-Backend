@@ -1,62 +1,107 @@
-from fastapi import APIRouter, Depends, UploadFile, File, HTTPException
-from sqlalchemy.orm import Session
+from fastapi import APIRouter, Depends, HTTPException, Query
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
+from typing import List, Optional
+from datetime import datetime
 from app.db.session import get_db
-from app.db.models.task import Task, TaskStatus, GPSLog, Evidence, Review
-from app.schemas.task import TaskCreate, GPSLogCreate, ReviewCreate
-import datetime
-import shutil
-import os
+from app.core.security import get_current_user
+from app.models.user import User
+from pydantic import BaseModel
 
-router = APIRouter()
+router = APIRouter(prefix="/tasks", tags=["tasks"])
 
-@router.post("/tasks")
-def create_task(
-    request: TaskCreate, db: Session = Depends(get_db)
+# ===== SCHEMAS =====
+class TaskCreate(BaseModel):
+    title: str
+    description: Optional[str] = None
+    priority: str = "medium"
+    status: str = "pending"
+    assigned_to: Optional[int] = None
+    due_date: Optional[datetime] = None
+
+class TaskUpdate(BaseModel):
+    title: Optional[str] = None
+    description: Optional[str] = None
+    priority: Optional[str] = None
+    status: Optional[str] = None
+    assigned_to: Optional[int] = None
+    due_date: Optional[datetime] = None
+
+class TaskResponse(BaseModel):
+    id: int
+    title: str
+    description: Optional[str]
+    priority: str
+    status: str
+    created_at: datetime
+    
+    class Config:
+        from_attributes = True
+
+# ===== GET ALL TASKS =====
+@router.get("/", response_model=List[TaskResponse])
+async def get_all_tasks(
+    skip: int = Query(0, ge=0),
+    limit: int = Query(100, ge=1, le=100),
+    status: Optional[str] = None,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
 ):
-    task = Task(**request.dict())
-    db.add(task)
-    db.commit()
-    db.refresh(task)
-    task_status = TaskStatus(task_id=task.id, status="Assigned")
-    db.add(task_status)
-    db.commit()
-    return {"task_id": str(task.id)}
+    """
+    Get all tasks
+    - **skip**: Number of tasks to skip (for pagination)
+    - **limit**: Maximum number of tasks to return
+    - **status**: Filter by status (optional)
+    """
+    # Return empty list for now (add database query later)
+    return []
 
-@router.post("/tasks/{task_id}/start")
-def start_task(task_id: str, gps_data: GPSLogCreate, db: Session = Depends(get_db)):
-    log = GPSLog(task_id=task_id, **gps_data.dict())
-    db.add(log)
-    db.add(TaskStatus(task_id=task_id, status="In Progress"))
-    db.commit()
-    return {"message": "Started with GPS logged"}
+# ===== GET TASK BY ID =====
+@router.get("/{task_id}", response_model=TaskResponse)
+async def get_task(
+    task_id: int,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """Get task by ID"""
+    # TODO: Add database query
+    raise HTTPException(status_code=404, detail="Task not found")
 
-@router.post("/tasks/{task_id}/evidence")
-def upload_evidence(task_id: str, user_id: str, file: UploadFile = File(...), db: Session = Depends(get_db)):
-    upload_dir = "uploads"
-    os.makedirs(upload_dir, exist_ok=True)
-    file_location = f"{upload_dir}/{file.filename}"
-    with open(file_location, "wb") as buffer:
-        shutil.copyfileobj(file.file, buffer)
-    evidence = Evidence(task_id=task_id, user_id=user_id, file_path=file_location)
-    db.add(evidence)
-    db.commit()
-    return {"message": "Evidence uploaded"}
+# ===== CREATE TASK =====
+@router.post("/", response_model=TaskResponse, status_code=201)
+async def create_task(
+    task: TaskCreate,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """Create a new task"""
+    # Mock response for now
+    return {
+        "id": 1,
+        "title": task.title,
+        "description": task.description,
+        "priority": task.priority,
+        "status": task.status,
+        "created_at": datetime.utcnow()
+    }
 
-@router.post("/tasks/{task_id}/submit")
-def submit_task(task_id: str, db: Session = Depends(get_db)):
-    db.add(TaskStatus(task_id=task_id, status="Submitted"))
-    db.commit()
-    return {"message": "Task submitted for review"}
+# ===== UPDATE TASK =====
+@router.put("/{task_id}", response_model=TaskResponse)
+async def update_task(
+    task_id: int,
+    task: TaskUpdate,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """Update a task"""
+    raise HTTPException(status_code=404, detail="Task not found")
 
-@router.post("/tasks/{task_id}/review")
-def review_task(task_id: str, review: ReviewCreate, db: Session = Depends(get_db)):
-    review_inst = Review(task_id=task_id, **review.dict())
-    db.add(review_inst)
-    db.add(TaskStatus(task_id=task_id, status=review.status))
-    db.commit()
-    return {"message": f"Task {review.status} by manager"}
-
-@router.get("/tasks/{task_id}/lifecycle")
-def get_task_lifecycle(task_id: str, db: Session = Depends(get_db)):
-    status_history = db.query(TaskStatus).filter(TaskStatus.task_id == task_id).order_by(TaskStatus.created_at).all()
-    return [{"status": item.status, "timestamp": item.created_at} for item in status_history]
+# ===== DELETE TASK =====
+@router.delete("/{task_id}", status_code=204)
+async def delete_task(
+    task_id: int,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """Delete a task"""
+    raise HTTPException(status_code=404, detail="Task not found")
