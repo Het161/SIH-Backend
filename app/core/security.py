@@ -6,6 +6,7 @@ from passlib.context import CryptContext
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import Session
 from sqlalchemy import select
 from app.core.config import settings
 
@@ -60,7 +61,7 @@ def decode_access_token(token: str) -> Optional[Dict[str, Any]]:
 
 async def get_current_user(
     credentials: HTTPAuthorizationCredentials = Depends(security),
-    db: AsyncSession = Depends(get_db)
+    db: Session = Depends(get_db)  # ✅ Use Session, not AsyncSession
 ):
     """Get current authenticated user from JWT token."""
     from app.models.user import User
@@ -82,8 +83,8 @@ async def get_current_user(
             detail="Invalid token payload"
         )
     
-    result = await db.execute(select(User).where(User.id == user_id))
-    user = result.scalar_one_or_none()
+    # ✅ FIXED: Remove await - use synchronous query
+    user = db.query(User).filter(User.id == user_id).first()
     
     if user is None:
         raise HTTPException(

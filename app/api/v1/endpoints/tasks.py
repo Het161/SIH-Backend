@@ -1,277 +1,238 @@
-from fastapi import APIRouter, Depends, UploadFile, File, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
 from typing import Optional, List
-import shutil
-import os
-import datetime
-from app.schemas.task import TaskCreate, GPSLogCreate, ReviewCreate
+from datetime import datetime
+
 from app.db.session import get_db
-from app.db.models.task import Task, TaskStatus, GPSLog, Evidence, Review
-from app.utils.audit import log_action
+from app.models.task import Task, TaskStatus
+from app.models.user import User
+from app.core.security import get_current_user
 
+router = APIRouter(prefix="/tasks", tags=["tasks"])
 
-router = APIRouter()
+# ===== PYDANTIC SCHEMAS =====
 
-
-# Pydantic model for bulk task creation
-class BulkTaskCreate(BaseModel):
+class TaskCreate(BaseModel):
     title: str
-    description: str
-    assigned_to_list: List[str]
-    assigned_by: str
-    due_date: datetime.datetime
+    description: Optional[str] = None
+    priority: str = "medium"
+    status: str = "pending"
+    assigned_to: Optional[int] = None
+    due_date: Optional[datetime] = None
 
+class UpdateTaskStatusRequest(BaseModel):
+    status: str
 
-# ===== NEW GET ENDPOINT =====
-@router.get("/tasks")
+# ===== ENDPOINTS =====
+
+@router.get("/")
 def get_all_tasks(
-    skip: int = 0,
-    limit: int = 100,
+    skip: int = Query(0, ge=0),
+    limit: int = Query(100, ge=1, le=1000),
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """
-    Get all tasks with pagination
-    """
-    tasks = db.query(Task).offset(skip).limit(limit).all()
+    """Get all tasks with pagination"""
+    try:
+        tasks = db.query(Task).offset(skip).limit(limit).all()
+        
+        return {
+            "success": True,
+            "data": [
+                {
+                    "id": task.id,
+                    "title": task.title,
+                    "description": task.description,
+                    "status": task.status,
+                    "priority": task.priority,
+                    "assigned_to": task.assigned_to,
+                    "created_by": task.created_by if hasattr(task, 'created_by') else None,
+                    "due_date": task.due_date.isoformat() if task.due_date else None,
+                    "created_at": task.created_at.isoformat() if task.created_at else None,
+                }
+                for task in tasks
+            ],
+            "total": len(tasks),
+            "skip": skip,
+            "limit": limit
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.post("/")
+def create_task(
+    request: TaskCreate,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Create a new task"""
+    try:
+        task_data = request.dict()
+        task_data['created_by'] = current_user.id
+        
+        task = Task(**task_data)
+        db.add(task)
+        db.commit()
+        db.refresh(task)
+        
+        # Add initial status record
+        try:
+            db.add(TaskStatus(task_id=task.id, status="pending"))
+            db.commit()
+        except Exception as e:
+            print(f"Failed to add TaskStatus: {e}")
+        
+        return {
+            "success": True,
+            "data": {
+                "id": task.id,
+                "title": task.title,
+                "description": task.description,
+                "status": task.status,
+                "priority": task.priority,
+                "created_by": task.created_by,
+            },
+            "message": "Task created successfully"
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.get("/{task_id}")
+def get_task(
+    task_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Get a specific task by ID"""
+    task = db.query(Task).filter(Task.id == task_id).first()
+    
+    if not task:
+        raise HTTPException(status_code=404, detail="Task not found")
+    
+    return {
+        "success": True,
+        "data": {
+            "id": task.id,
+            "title": task.title,
+            "description": task.description,
+            "status": task.status,
+            "priority": task.priority,
+            "assigned_to": task.assigned_to,
+            "created_by": task.created_by if hasattr(task, 'created_by') else None,
+            "due_date": task.due_date.isoformat() if task.due_date else None,
+            "created_at": task.created_at.isoformat() if task.created_at else None,
+        }
+    }
+
+@router.put("/{task_id}")
+def update_task(
+    task_id: int,
+    request: TaskCreate,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Update an existing task"""
+    task = db.query(Task).filter(Task.id == task_id).first()
+    
+    if not task:
+        raise HTTPException(status_code=404, detail="Task not found")
+    
+    for key, value in request.dict(exclude_unset=True).items():
+        if value is not None:
+            setattr(task, key, value)
+    
+    db.commit()
+    db.refresh(task)
+    
+    return {
+        "success": True,
+        "message": "Task updated successfully"
+    }
+
+@router.delete("/{task_id}")
+def delete_task(
+    task_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Delete a task"""
+    task = db.query(Task).filter(Task.id == task_id).first()
+    
+    if not task:
+        raise HTTPException(status_code=404, detail="Task not found")
+    
+    db.delete(task)
+    db.commit()
+    
+    return {
+        "success": True,
+        "message": "Task deleted successfully"
+    }
+
+@router.patch("/{task_id}/status")
+def update_task_status(
+    task_id: int,
+    request: UpdateTaskStatusRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Update task status"""
+    task = db.query(Task).filter(Task.id == task_id).first()
+    
+    if not task:
+        raise HTTPException(status_code=404, detail="Task not found")
+    
+    task.status = request.status
+    db.commit()
+    
+    return {
+        "success": True,
+        "message": "Task status updated"
+    }
+
+@router.get("/search/all")
+def search_tasks(
+    status: Optional[str] = None,
+    assigned_to: Optional[int] = None,
+    search: Optional[str] = None,
+    limit: int = Query(50, le=100),
+    skip: int = 0,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Search and filter tasks"""
+    query = db.query(Task)
+    
+    if assigned_to:
+        query = query.filter(Task.assigned_to == assigned_to)
+    
+    if status:
+        query = query.filter(Task.status == status)
+    
+    if search:
+        query = query.filter(
+            (Task.title.ilike(f"%{search}%")) |
+            (Task.description.ilike(f"%{search}%"))
+        )
+    
+    tasks = query.offset(skip).limit(limit).all()
     
     return {
         "success": True,
         "data": [
             {
-                "id": str(task.id),
+                "id": task.id,
                 "title": task.title,
                 "description": task.description,
-                "status": task.status,
-                "priority": task.priority,
-                "assigned_to": str(task.assigned_to) if task.assigned_to else None,
-                "assigned_by": str(task.assigned_by) if task.assigned_by else None,
-                "created_by": str(task.created_by) if hasattr(task, 'created_by') and task.created_by else None,
-                "due_date": str(task.due_date) if task.due_date else None,
-                "created_at": str(task.created_at) if task.created_at else None,
-                "updated_at": str(task.updated_at) if task.updated_at else None
+                "assigned_to": task.assigned_to,
+                "created_by": task.created_by if hasattr(task, 'created_by') else None,
+                "due_date": task.due_date.isoformat() if task.due_date else None,
+                "created_at": task.created_at.isoformat() if task.created_at else None
             }
             for task in tasks
-        ],
-        "total": len(tasks),
-        "skip": skip,
-        "limit": limit
+        ]
     }
 
 
-@router.post("/tasks")
-def create_task(request: TaskCreate, db: Session = Depends(get_db)):
-    task = Task(**request.dict())
-    db.add(task)
-    db.commit()
-    db.refresh(task)
-    
-    db.add(TaskStatus(task_id=task.id, status="Assigned"))
-    db.commit()
-    
-    # Log the action
-    log_action(
-        db=db,
-        user_id=str(request.assigned_by),
-        action="CREATE_TASK",
-        resource_type="task",
-        resource_id=str(task.id),
-        details={
-            "title": task.title,
-            "assigned_to": str(task.assigned_to),
-            "due_date": str(task.due_date)
-        }
-    )
-    
-    return {"task_id": str(task.id)}
-
-
-@router.post("/tasks/bulk")
-def create_bulk_tasks(request: BulkTaskCreate, db: Session = Depends(get_db)):
-    """Create multiple tasks - same task assigned to multiple users"""
-    created_tasks = []
-    
-    for user_id in request.assigned_to_list:
-        task = Task(
-            title=request.title,
-            description=request.description,
-            assigned_to=user_id,
-            assigned_by=request.assigned_by,
-            due_date=request.due_date
-        )
-        db.add(task)
-        db.flush()
-        db.add(TaskStatus(task_id=task.id, status="Assigned"))
-        log_action(
-            db=db, 
-            user_id=str(request.assigned_by), 
-            action="BULK_CREATE_TASK", 
-            resource_type="task", 
-            resource_id=str(task.id), 
-            details={"title": task.title, "assigned_to": str(user_id)}
-        )
-        created_tasks.append(str(task.id))
-    
-    db.commit()
-    return {"message": f"Created {len(created_tasks)} tasks", "task_ids": created_tasks}
-
-
-@router.post("/tasks/{task_id}/start")
-def start_task(task_id: str, gps: GPSLogCreate, db: Session = Depends(get_db)):
-    log = GPSLog(task_id=task_id, **gps.dict())
-    db.add(log)
-    db.add(TaskStatus(task_id=task_id, status="In Progress"))
-    db.commit()
-    
-    # Log the action
-    log_action(
-        db=db,
-        user_id=str(gps.user_id),
-        action="START_TASK",
-        resource_type="task",
-        resource_id=task_id,
-        details={
-            "latitude": float(gps.latitude),
-            "longitude": float(gps.longitude)
-        }
-    )
-    
-    return {"message": "Started with GPS logged"}
-
-
-@router.post("/tasks/{task_id}/evidence")
-def upload_evidence(task_id: str, user_id: str, file: UploadFile = File(...), db: Session = Depends(get_db)):
-    upload_dir = "uploads"
-    os.makedirs(upload_dir, exist_ok=True)
-    file_location = f"{upload_dir}/{file.filename}"
-    with open(file_location, "wb") as buffer:
-        shutil.copyfileobj(file.file, buffer)
-    
-    evidence = Evidence(task_id=task_id, user_id=user_id, file_path=file_location)
-    db.add(evidence)
-    db.commit()
-    
-    # Log the action
-    log_action(
-        db=db,
-        user_id=user_id,
-        action="UPLOAD_EVIDENCE",
-        resource_type="task",
-        resource_id=task_id,
-        details={
-            "filename": file.filename,
-            "file_path": file_location
-        }
-    )
-    
-    return {"message": "Evidence uploaded"}
-
-
-@router.post("/tasks/{task_id}/submit")
-def submit_task(task_id: str, user_id: str, db: Session = Depends(get_db)):
-    db.add(TaskStatus(task_id=task_id, status="Submitted"))
-    db.commit()
-    
-    # Log the action
-    log_action(
-        db=db,
-        user_id=user_id,
-        action="SUBMIT_TASK",
-        resource_type="task",
-        resource_id=task_id,
-        details={"status": "Submitted"}
-    )
-    
-    return {"message": "Task submitted for review"}
-
-
-@router.post("/tasks/{task_id}/review")
-def review_task(task_id: str, review: ReviewCreate, db: Session = Depends(get_db)):
-    db.add(Review(task_id=task_id, **review.dict()))
-    db.add(TaskStatus(task_id=task_id, status=review.status))
-    db.commit()
-    
-    # Log the action
-    log_action(
-        db=db,
-        user_id=str(review.manager_id),
-        action="REVIEW_TASK",
-        resource_type="task",
-        resource_id=task_id,
-        details={
-            "status": review.status,
-            "feedback": review.feedback
-        }
-    )
-    
-    return {"message": f"Task {review.status} by manager"}
-
-
-@router.get("/tasks/{task_id}/lifecycle")
-def get_task_lifecycle(task_id: str, db: Session = Depends(get_db)):
-    status_history = db.query(TaskStatus).filter(TaskStatus.task_id == task_id).order_by(TaskStatus.created_at).all()
-    return [{"status": item.status, "timestamp": item.created_at} for item in status_history]
-
-
-@router.get("/tasks/search")
-def search_tasks(
-    status: Optional[str] = None,
-    assigned_to: Optional[str] = None,
-    assigned_by: Optional[str] = None,
-    from_date: Optional[str] = None,
-    to_date: Optional[str] = None,
-    search: Optional[str] = None,
-    limit: int = Query(50, le=100),
-    skip: int = 0,
-    db: Session = Depends(get_db)
-):
-    """Search and filter tasks with multiple criteria"""
-    
-    query = db.query(Task)
-    
-    # Filter by assigned user
-    if assigned_to:
-        query = query.filter(Task.assigned_to == assigned_to)
-    
-    # Filter by manager
-    if assigned_by:
-        query = query.filter(Task.assigned_by == assigned_by)
-    
-    # Filter by date range
-    if from_date:
-        query = query.filter(Task.created_at >= from_date)
-    if to_date:
-        query = query.filter(Task.created_at <= to_date)
-    
-    # Search in title/description
-    if search:
-        query = query.filter(
-            (Task.title.ilike(f"%{search}%")) | 
-            (Task.description.ilike(f"%{search}%"))
-        )
-    
-    # Filter by status (join with latest TaskStatus)
-    if status:
-        latest_status = db.query(
-            TaskStatus.task_id
-        ).filter(
-            TaskStatus.status == status
-        ).distinct().subquery()
-        
-        query = query.filter(Task.id.in_(latest_status))
-    
-    tasks = query.offset(skip).limit(limit).all()
-    
-    return [
-        {
-            "id": str(task.id),
-            "title": task.title,
-            "description": task.description,
-            "assigned_to": str(task.assigned_to),
-            "assigned_by": str(task.assigned_by),
-            "due_date": task.due_date,
-            "created_at": task.created_at
-        }
-        for task in tasks
-    ]
 

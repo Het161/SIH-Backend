@@ -40,7 +40,7 @@ async def register(
     
     new_user = User(
         email=user_data.email,
-        full_name=user_data.name,
+        full_name=user_data.full_name,
         hashed_password=get_password_hash(user_data.password),
         role=user_data.role,
         department=user_data.department,
@@ -55,7 +55,7 @@ async def register(
     background_tasks.add_task(
         send_welcome_email,
         user_email=new_user.email,
-        user_name=new_user.name,
+        user_name=new_user.full_name,
         user_role=new_user.role.value if hasattr(new_user.role, 'value') else str(new_user.role),
         user_department=new_user.department or "Not specified"
     )
@@ -94,7 +94,7 @@ async def login(
     background_tasks.add_task(
         send_welcome_email,
         user_email=user.email,
-        user_name=user.name,
+        user_name=user.full_name,
         user_role=user.role.value if hasattr(user.role, 'value') else str(user.role),
         user_department=user.department or "Not specified"
     )
@@ -105,7 +105,7 @@ async def login(
         "user": {
             "id": user.id,
             "email": user.email,
-            "name": user.name,
+            "name": user.full_name,
             "role": user.role.value if hasattr(user.role, 'value') else str(user.role),
             "department": user.department,
             "is_active": user.is_active,

@@ -19,7 +19,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # Get environment from OS env vars with fallback
-ENVIRONMENT = os.getenv("ENVIRONMENT", "production")
+ENVIRONMENT = os.getenv("ENVIRONMENT", "development")
 
 # Lifespan manager for startup/shutdown
 @asynccontextmanager
@@ -92,11 +92,14 @@ app.add_middleware(
     allow_origins=[
         "https://smartwork-frontend-1g4psweny-het-patels-projects-7277c57e.vercel.app",
         "http://localhost:3000",
+        "http://localhost:3001",
+        "http://127.0.0.1:3000",
         "*"  # Temporary: Allow all origins for testing
     ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=["*"],
 )
 
 # Exception handlers
