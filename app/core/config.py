@@ -15,6 +15,9 @@ class Settings(BaseSettings):
     
     # Database Configuration
     DATABASE_URL: Optional[str] = None
+
+    # ✅ ADD FRONTEND_URL
+    FRONTEND_URL: str = "http://localhost:3000"
     
     # Security
     SECRET_KEY: str
@@ -27,10 +30,10 @@ class Settings(BaseSettings):
     # Email Configuration
     SMTP_HOST: str = "smtp.gmail.com"
     SMTP_PORT: int = 587
-    SMTP_USER: Optional[str] = None
-    SMTP_PASSWORD: Optional[str] = None
-    EMAIL_FROM: Optional[str] = None
-    EMAIL_FROM_NAME: str = "SmartWork 360"
+    SMTP_USER: str
+    SMTP_PASSWORD: str
+    SMTP_FROM: str
+    SMTP_FROM_NAME: str = "SmartWork 360"
     
     # Optional Services
     REDIS_URL: Optional[str] = None
@@ -56,6 +59,10 @@ class Settings(BaseSettings):
         if self.ALLOWED_ORIGINS == "*":
             return ["*"]
         return [origin.strip() for origin in self.ALLOWED_ORIGINS.split(",")]
+
+class Config:
+    env_file = ".env"
+    case_sensitive = True
 
 settings = Settings()
 

@@ -1,20 +1,28 @@
+# render.yaml
 services:
   - type: web
-    name: smartwork-backend
+    name: smartwork360-backend
     env: python
-    buildCommand: pip install -r requirements.txt
-    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    buildCommand: "pip install -r requirements.txt"
+    startCommand: "uvicorn app.main:app --host 0.0.0.0 --port $PORT"
     envVars:
       - key: DATABASE_URL
         fromDatabase:
-          name: smartwork-db
+          name: smartwork360-db
           property: connectionString
       - key: SECRET_KEY
         generateValue: true
-      - key: ENVIRONMENT
-        value: production
+      - key: SMTP_SERVER
+        value: smtp.gmail.com
+      - key: SMTP_PORT
+        value: 587
+      - key: SENDER_EMAIL
+        sync: false
+      - key: SENDER_PASSWORD
+        sync: false
 
 databases:
-  - name: smartwork-db
+  - name: smartwork360-db
     databaseName: smartwork360
-    user: smartwork_user
+    user: smartwork360
+
