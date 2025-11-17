@@ -5,7 +5,7 @@ python-multipart==0.0.6
 
 # Database
 SQLAlchemy==2.0.35
-psycopg2-binary==2.9.9
+psycopg2-binary==2.9.10
 alembic==1.13.3
 
 # Security & Authentication
@@ -22,18 +22,7 @@ aiosmtplib==3.0.2
 python-dotenv==1.0.1
 pydantic==2.9.2
 pydantic-settings==2.6.0
-
-# Data Validation & Serialization
 email-validator==2.2.0
-
-# Performance & Monitoring
-slowapi==0.1.9
-sentry-sdk[fastapi]==2.17.0
-
-# Caching (Redis compatible version)
-fastapi-cache2[redis]==0.2.2
-redis==4.6.0
 
 # Utilities
 python-dateutil==2.9.0.post0
-
