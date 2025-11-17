@@ -14,6 +14,7 @@
 # from app.core.config import settings
 # from app.db.session import engine, Base
 
+
 # # ============================================================================
 # # LOGGING CONFIGURATION
 # # ============================================================================
@@ -23,6 +24,7 @@
 #     handlers=[logging.StreamHandler()],
 # )
 # logger = logging.getLogger(__name__)
+
 
 # # ============================================================================
 # # ENVIRONMENT CONFIGURATION
@@ -37,8 +39,8 @@
 # @asynccontextmanager
 # async def lifespan(app: FastAPI):
 #     """Startup and shutdown events handler"""
-#     app_name = getattr(settings, 'APP_NAME', 'SmartWork 360')
-#     version = getattr(settings, 'VERSION', '1.0.0')
+#     app_name = settings.APP_NAME
+#     version = settings.VERSION
     
 #     # Startup
 #     logger.info("=" * 60)
@@ -87,9 +89,9 @@
 # # FASTAPI APPLICATION INITIALIZATION
 # # ============================================================================
 # app = FastAPI(
-#     title=getattr(settings, 'APP_NAME', 'SmartWork 360'),
+#     title=settings.APP_NAME,
 #     description="Government Productivity Management System - Backend API",
-#     version=getattr(settings, 'VERSION', '1.0.0'),
+#     version=settings.VERSION,
 #     docs_url="/docs",
 #     redoc_url="/redoc",
 #     openapi_url="/openapi.json",
@@ -102,40 +104,34 @@
 # # ============================================================================
 # def get_allowed_origins():
 #     """Get list of allowed CORS origins based on environment"""
-#     origins = [
-#         # Production URLs
-#         "https://smartwork-frontend-2242.vercel.app",  # Your Vercel frontend
-#         "https://sih-backend-xiz8.onrender.com",       # Backend itself
-        
-#         # Development URLs
-       
-       
-#         "http://localhost:3000",
-#         "http://localhost:3001",
-#         "http://localhost:8000",
-#         "http://127.0.0.1:3000",
-#         "http://127.0.0.1:8000",
-#         "https://smartwork-frontend-2242.vercel.app",
-#         settings.FRONTEND_URL 
-#     ]
+#     # Start with settings CORS origins
+#     origins = settings.CORS_ORIGINS.copy()
     
-#     # Add FRONTEND_URL from environment
-#     frontend_url = os.getenv("FRONTEND_URL")
-#     if frontend_url:
-#         origins.append(frontend_url)
-#         logger.info(f"✅ Added FRONTEND_URL from env: {frontend_url}")
+#     # Always add FRONTEND_URL
+#     if settings.FRONTEND_URL not in origins:
+#         origins.append(settings.FRONTEND_URL)
     
 #     # Add comma-separated ALLOWED_ORIGINS from environment
 #     allowed_origins_env = os.getenv("ALLOWED_ORIGINS")
 #     if allowed_origins_env:
-#         extra_origins = [o.strip() for o in allowed_origins_env.split(",")]
-#         origins.extend(extra_origins)
+#         extra_origins = [o.strip() for o in allowed_origins_env.split(",") if o.strip()]
+#         for origin in extra_origins:
+#             if origin not in origins:
+#                 origins.append(origin)
 #         logger.info(f"✅ Added ALLOWED_ORIGINS from env: {extra_origins}")
     
-#     # Development mode: allow all origins
+#     # Development mode: allow additional localhost variations
 #     if ENVIRONMENT == "development":
-#         origins.append("*")
-#         logger.warning("⚠️  CORS: Allowing ALL origins (development mode)")
+#         dev_origins = [
+#             "http://localhost:3000",
+#             "http://localhost:3001",
+#             "http://127.0.0.1:3000",
+#             "http://127.0.0.1:3001",
+#         ]
+#         for origin in dev_origins:
+#             if origin not in origins:
+#                 origins.append(origin)
+#         logger.warning("⚠️  CORS: Development mode - allowing localhost origins")
     
 #     # Log all allowed origins
 #     logger.info(f"🔒 CORS allowed origins ({len(origins)} total):")
@@ -148,9 +144,8 @@
 # # Apply CORS middleware
 # app.add_middleware(
 #     CORSMiddleware,
-#     allow_origins=settings.CORS_ORIGINS + [settings.FRONTEND_URL],
 #     allow_origins=get_allowed_origins(),
-#     allow_credentials=True, 
+#     allow_credentials=True,
 #     allow_methods=["*"],
 #     allow_headers=["*"],
 #     expose_headers=["*"],
@@ -275,9 +270,9 @@
 #         "success": True,
 #         "message": "Welcome to SmartWork 360 API",
 #         "data": {
-#             "app_name": getattr(settings, 'APP_NAME', 'SmartWork 360'),
+#             "app_name": settings.APP_NAME,
 #             "description": "Government Productivity Management System",
-#             "version": getattr(settings, 'VERSION', '1.0.0'),
+#             "version": settings.VERSION,
 #             "status": "running",
 #             "environment": ENVIRONMENT,
 #             "endpoints": {
@@ -317,8 +312,8 @@
 #             "success": is_healthy,
 #             "status": "healthy" if is_healthy else "unhealthy",
 #             "data": {
-#                 "app_name": getattr(settings, 'APP_NAME', 'SmartWork 360'),
-#                 "version": getattr(settings, 'VERSION', '1.0.0'),
+#                 "app_name": settings.APP_NAME,
+#                 "version": settings.VERSION,
 #                 "environment": ENVIRONMENT,
 #                 "database": {
 #                     "status": db_status,
@@ -384,8 +379,8 @@
 #     return {
 #         "success": True,
 #         "data": {
-#             "app_name": getattr(settings, 'APP_NAME', 'SmartWork 360'),
-#             "version": getattr(settings, 'VERSION', '1.0.0'),
+#             "app_name": settings.APP_NAME,
+#             "version": settings.VERSION,
 #             "environment": ENVIRONMENT,
 #             "total_routes": len(routes),
 #             "routes_by_tag": routes_by_tag,
@@ -491,21 +486,20 @@
 #         access_log=True,
 #     )
 
-
-
-
-
 """
 SmartWork 360 - FastAPI Backend Application
 Government Productivity Management System
+Production-Ready Version with Security & Monitoring
 """
 import os
+import time
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.exceptions import RequestValidationError
 from starlette.exceptions import HTTPException as StarletteHTTPException
+from starlette.middleware.sessions import SessionMiddleware
 import logging
 
 from app.core.config import settings
@@ -589,10 +583,23 @@ app = FastAPI(
     title=settings.APP_NAME,
     description="Government Productivity Management System - Backend API",
     version=settings.VERSION,
-    docs_url="/docs",
-    redoc_url="/redoc",
-    openapi_url="/openapi.json",
+    docs_url="/docs" if ENVIRONMENT != "production" else None,  # ✅ Disable in production
+    redoc_url="/redoc" if ENVIRONMENT != "production" else None,  # ✅ Disable in production
+    openapi_url="/openapi.json" if ENVIRONMENT != "production" else None,  # ✅ Disable in production
     lifespan=lifespan,
+)
+
+
+# ============================================================================
+# SESSION MIDDLEWARE (for security)
+# ============================================================================
+app.add_middleware(
+    SessionMiddleware,
+    secret_key=settings.SECRET_KEY,
+    session_cookie="smartwork_session",
+    max_age=1800,  # 30 minutes
+    same_site="lax",
+    https_only=ENVIRONMENT == "production"
 )
 
 
@@ -602,10 +609,10 @@ app = FastAPI(
 def get_allowed_origins():
     """Get list of allowed CORS origins based on environment"""
     # Start with settings CORS origins
-    origins = settings.CORS_ORIGINS.copy()
+    origins = settings.CORS_ORIGINS.copy() if settings.CORS_ORIGINS else []
     
     # Always add FRONTEND_URL
-    if settings.FRONTEND_URL not in origins:
+    if settings.FRONTEND_URL and settings.FRONTEND_URL not in origins:
         origins.append(settings.FRONTEND_URL)
     
     # Add comma-separated ALLOWED_ORIGINS from environment
@@ -622,13 +629,18 @@ def get_allowed_origins():
         dev_origins = [
             "http://localhost:3000",
             "http://localhost:3001",
+            "http://localhost:8000",
             "http://127.0.0.1:3000",
             "http://127.0.0.1:3001",
+            "http://127.0.0.1:8000",
         ]
         for origin in dev_origins:
             if origin not in origins:
                 origins.append(origin)
         logger.warning("⚠️  CORS: Development mode - allowing localhost origins")
+    
+    # Remove duplicates and empty strings
+    origins = list(set(filter(None, origins)))
     
     # Log all allowed origins
     logger.info(f"🔒 CORS allowed origins ({len(origins)} total):")
@@ -643,11 +655,74 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=get_allowed_origins(),
     allow_credentials=True,
-    allow_methods=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
     allow_headers=["*"],
     expose_headers=["*"],
+    max_age=600,  # Cache preflight requests for 10 minutes
 )
 logger.info("✅ CORS middleware configured")
+
+
+# ============================================================================
+# SECURITY HEADERS MIDDLEWARE
+# ============================================================================
+@app.middleware("http")
+async def add_security_headers(request: Request, call_next):
+    """Add security headers to all responses"""
+    response = await call_next(request)
+    
+    # Security headers
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["X-XSS-Protection"] = "1; mode=block"
+    response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+    response.headers["Permissions-Policy"] = "geolocation=(), microphone=(), camera=()"
+    
+    # Only add HSTS in production with HTTPS
+    if ENVIRONMENT == "production":
+        response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains; preload"
+    
+    # Add server identification
+    response.headers["X-API-Version"] = settings.VERSION
+    
+    return response
+
+
+# ============================================================================
+# REQUEST LOGGING & TIMING MIDDLEWARE
+# ============================================================================
+@app.middleware("http")
+async def log_requests(request: Request, call_next):
+    """Log all incoming requests and responses with timing"""
+    start_time = time.time()
+    
+    # Log incoming request
+    logger.info(f"📨 {request.method} {request.url.path}")
+    
+    try:
+        response = await call_next(request)
+        
+        # Calculate processing time
+        process_time = time.time() - start_time
+        response.headers["X-Process-Time"] = str(process_time)
+        
+        # Log response
+        logger.info(
+            f"✅ {request.method} {request.url.path} | "
+            f"Status: {response.status_code} | "
+            f"Time: {process_time:.3f}s"
+        )
+        
+        return response
+    except Exception as e:
+        process_time = time.time() - start_time
+        logger.error(
+            f"❌ {request.method} {request.url.path} | "
+            f"Error: {str(e)} | "
+            f"Time: {process_time:.3f}s",
+            exc_info=True
+        )
+        raise
 
 
 # ============================================================================
@@ -685,7 +760,8 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
             "loc": list(error.get("loc", [])),
             "msg": error.get("msg"),
         }
-        if "input" in error and not isinstance(error["input"], bytes):
+        # Only include input in development mode
+        if ENVIRONMENT == "development" and "input" in error and not isinstance(error["input"], bytes):
             error_dict["input"] = str(error["input"])
         errors_list.append(error_dict)
     
@@ -719,6 +795,7 @@ async def general_exception_handler(request: Request, exc: Exception):
     
     # Show detailed error in development, generic in production
     error_detail = str(exc) if ENVIRONMENT == "development" else "Internal server error"
+    error_type = type(exc).__name__ if ENVIRONMENT == "development" else "ServerError"
     
     return JSONResponse(
         status_code=500,
@@ -726,35 +803,12 @@ async def general_exception_handler(request: Request, exc: Exception):
             "success": False,
             "error": {
                 "message": error_detail,
-                "type": type(exc).__name__,
+                "type": error_type,
                 "status_code": 500,
                 "path": str(request.url.path),
             }
         },
     )
-
-
-# ============================================================================
-# REQUEST LOGGING MIDDLEWARE
-# ============================================================================
-@app.middleware("http")
-async def log_requests(request: Request, call_next):
-    """Log all incoming requests and responses"""
-    logger.info(f"📨 {request.method} {request.url.path}")
-    
-    try:
-        response = await call_next(request)
-        logger.info(
-            f"✅ {request.method} {request.url.path} | "
-            f"Status: {response.status_code}"
-        )
-        return response
-    except Exception as e:
-        logger.error(
-            f"❌ {request.method} {request.url.path} | Error: {str(e)}",
-            exc_info=True
-        )
-        raise
 
 
 # ============================================================================
@@ -773,9 +827,9 @@ async def root():
             "status": "running",
             "environment": ENVIRONMENT,
             "endpoints": {
-                "docs": "/docs",
-                "redoc": "/redoc",
-                "openapi": "/openapi.json",
+                "docs": "/docs" if ENVIRONMENT != "production" else "disabled",
+                "redoc": "/redoc" if ENVIRONMENT != "production" else "disabled",
+                "openapi": "/openapi.json" if ENVIRONMENT != "production" else "disabled",
                 "health": "/health",
                 "ready": "/ready",
                 "info": "/info",
@@ -794,11 +848,12 @@ async def health_check():
     try:
         from sqlalchemy import text
         with engine.connect() as conn:
-            conn.execute(text("SELECT 1"))
+            result = conn.execute(text("SELECT 1"))
+            result.close()
         db_status = "healthy"
     except Exception as e:
         db_status = "unhealthy"
-        db_error = str(e)
+        db_error = str(e) if ENVIRONMENT == "development" else "Database connection failed"
         logger.error(f"Health check DB error: {e}")
     
     is_healthy = db_status == "healthy"
@@ -828,7 +883,8 @@ async def readiness_check():
     try:
         from sqlalchemy import text
         with engine.connect() as conn:
-            conn.execute(text("SELECT 1"))
+            result = conn.execute(text("SELECT 1"))
+            result.close()
         
         return {
             "success": True,
@@ -850,7 +906,19 @@ async def readiness_check():
 
 @app.get("/info", tags=["Info"])
 async def api_info():
-    """Get API route information"""
+    """Get API route information (disabled in production)"""
+    if ENVIRONMENT == "production":
+        return JSONResponse(
+            status_code=404,
+            content={
+                "success": False,
+                "error": {
+                    "message": "Not found",
+                    "status_code": 404,
+                }
+            }
+        )
+    
     routes = []
     for route in app.routes:
         if hasattr(route, "methods") and hasattr(route, "path"):
@@ -965,12 +1033,14 @@ if __name__ == "__main__":
     port = int(os.getenv("PORT", 8000))
     host = os.getenv("HOST", "0.0.0.0")
     reload = ENVIRONMENT == "development"
+    workers = int(os.getenv("WORKERS", 1))
     
     logger.info("=" * 60)
     logger.info(f"🚀 Starting Uvicorn server")
     logger.info(f"   Host: {host}")
     logger.info(f"   Port: {port}")
     logger.info(f"   Reload: {reload}")
+    logger.info(f"   Workers: {workers}")
     logger.info(f"   Environment: {ENVIRONMENT}")
     logger.info("=" * 60)
     
@@ -979,10 +1049,10 @@ if __name__ == "__main__":
         host=host,
         port=port,
         reload=reload,
+        workers=workers if not reload else 1,  # Multiple workers only in production
         log_level="info",
         access_log=True,
     )
-
 
 
 
