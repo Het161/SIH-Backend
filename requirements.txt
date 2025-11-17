@@ -21,7 +21,7 @@ aiosmtplib==5.0.0
 # Security
 cryptography==46.0.2
 argon2-cffi==25.1.0
-bcrypt==4.3.0
+bcrypt==4.2.0
 
 # Utilities
 requests==2.31.0
