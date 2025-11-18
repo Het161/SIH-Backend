@@ -601,7 +601,20 @@ app.add_middleware(
     same_site="lax",
     https_only=ENVIRONMENT == "production"
 )
-
+@app.options("/{full_path:path}")
+async def options_handler(request: Request, full_path: str):
+    """Handle all OPTIONS requests for CORS preflight"""
+    return JSONResponse(
+        content={"message": "OK"},
+        status_code=200,
+        headers={
+            "Access-Control-Allow-Origin": request.headers.get("origin", "*"),
+            "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, PATCH, OPTIONS",
+            "Access-Control-Allow-Headers": "*",
+            "Access-Control-Allow-Credentials": "true",
+            "Access-Control-Max-Age": "3600",
+        }
+    )
 
 # ============================================================================
 # CORS CONFIGURATION
@@ -807,20 +820,7 @@ async def general_exception_handler(request: Request, exc: Exception):
 # ============================================================================
 # HANDLE OPTIONS REQUESTS (CORS Preflight)
 # ============================================================================
-@app.options("/{full_path:path}")
-async def options_handler(request: Request, full_path: str):
-    """Handle all OPTIONS requests for CORS preflight"""
-    return JSONResponse(
-        content={"message": "OK"},
-        status_code=200,
-        headers={
-            "Access-Control-Allow-Origin": request.headers.get("origin", "*"),
-            "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, PATCH, OPTIONS",
-            "Access-Control-Allow-Headers": "*",
-            "Access-Control-Allow-Credentials": "true",
-            "Access-Control-Max-Age": "3600",
-        }
-    )
+
 
 
 
