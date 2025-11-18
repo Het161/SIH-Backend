@@ -606,9 +606,9 @@ app.add_middleware(
 # ============================================================================
 # CORS CONFIGURATION
 # ============================================================================
+ 
 def get_allowed_origins():
     """Get list of allowed CORS origins based on environment"""
-    # Start with settings CORS origins
     origins = settings.CORS_ORIGINS.copy() if settings.CORS_ORIGINS else []
     
     # Always add FRONTEND_URL
@@ -622,27 +622,21 @@ def get_allowed_origins():
         for origin in extra_origins:
             if origin not in origins:
                 origins.append(origin)
-        logger.info(f"✅ Added ALLOWED_ORIGINS from env: {extra_origins}")
     
     # Development mode: allow additional localhost variations
     if ENVIRONMENT == "development":
         dev_origins = [
             "http://localhost:3000",
             "http://localhost:3001",
-            "http://localhost:8000",
             "http://127.0.0.1:3000",
-            "http://127.0.0.1:3001",
-            "http://127.0.0.1:8000",
         ]
         for origin in dev_origins:
             if origin not in origins:
                 origins.append(origin)
-        logger.warning("⚠️  CORS: Development mode - allowing localhost origins")
     
-    # Remove duplicates and empty strings
+    # Remove duplicates
     origins = list(set(filter(None, origins)))
     
-    # Log all allowed origins
     logger.info(f"🔒 CORS allowed origins ({len(origins)} total):")
     for origin in origins:
         logger.info(f"   - {origin}")
@@ -655,11 +649,12 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=get_allowed_origins(),
     allow_credentials=True,
-    allow_methods=["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],  # ✅ Explicitly allow OPTIONS
     allow_headers=["*"],
     expose_headers=["*"],
-    max_age=600,  # Cache preflight requests for 10 minutes
+    max_age=3600,  # Cache preflight for 1 hour
 )
+
 logger.info("✅ CORS middleware configured")
 
 
@@ -809,6 +804,24 @@ async def general_exception_handler(request: Request, exc: Exception):
             }
         },
     )
+# ============================================================================
+# HANDLE OPTIONS REQUESTS (CORS Preflight)
+# ============================================================================
+@app.options("/{full_path:path}")
+async def options_handler(request: Request, full_path: str):
+    """Handle all OPTIONS requests for CORS preflight"""
+    return JSONResponse(
+        content={"message": "OK"},
+        status_code=200,
+        headers={
+            "Access-Control-Allow-Origin": request.headers.get("origin", "*"),
+            "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, PATCH, OPTIONS",
+            "Access-Control-Allow-Headers": "*",
+            "Access-Control-Allow-Credentials": "true",
+            "Access-Control-Max-Age": "3600",
+        }
+    )
+
 
 
 # ============================================================================
