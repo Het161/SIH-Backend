@@ -65,7 +65,7 @@ async def register(
         result = await send_welcome_email(
             user_email=new_user.email,
             user_name=new_user.full_name,
-            user_role=new_user.role.value,
+            user_role=new_user.role,
             user_department=new_user.department or "Not specified"
         )
         
